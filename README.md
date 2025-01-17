@@ -1,3 +1,7 @@
+compile with `-lshlwapi`
+see: https://cplusplus.com/forum/general/241958/
+
+________________________________________________________________________________
 Use only in labs (has only been tested in one lab environment at upload time)
 
 # Distributed under MIT license

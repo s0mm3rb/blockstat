@@ -44,13 +44,13 @@ Powershell calling can be done:
 #include "Shlwapi.h"
 #include "blockstat.h"
 #pragma comment(lib, "Shlwapi.lib")
-
+#define UNICODE
 //very big size in characters
 #define SUPERMAXPATH 4096
 #define ERRORWIDTH 4096
 //max amount of files blockstat will compare
 //
-//#define SOMETHINGFISHY
+#define SOMETHINGFISHY
 #ifdef SOMETHINGFISHY
 	#define MAXCOMPAREFILES 16384
 #else
@@ -58,6 +58,7 @@ Powershell calling can be done:
 #endif
 
 #include <iostream>
+#include <cstdint>
 
 //Don't have mem will use a uint8_t for referencing counting. This will slash memory usage in half
 //However, in this case a block can not be shared more then 255 time because it will overflow to 0 again and give false results
@@ -268,13 +269,13 @@ typedef struct _Blockstatflags {
 bool GetVolInfo(wchar_t * pfname, VINFO * vinfo) {
 	bool success = false;
 
-	if (GetVolumePathName(pfname, vinfo->Volume, SUPERMAXPATH)) {
+	if (GetVolumePathNameW(pfname, vinfo->Volume, SUPERMAXPATH)) {
 		DWORD SectorsPerCluster;
 		DWORD BytesPerSector;
 		DWORD NumberOfFreeClusters;
 		DWORD TotalNumberOfClusters;
 
-		if (GetDiskFreeSpace(vinfo->Volume, &SectorsPerCluster, &BytesPerSector, &NumberOfFreeClusters, &TotalNumberOfClusters)) {
+		if (GetDiskFreeSpaceW(vinfo->Volume, &SectorsPerCluster, &BytesPerSector, &NumberOfFreeClusters, &TotalNumberOfClusters)) {
 			//vinfo->Clusters = TotalNumberOfClusters;
 			vinfo->ClusterSize = SectorsPerCluster*BytesPerSector;
 
@@ -282,7 +283,7 @@ bool GetVolInfo(wchar_t * pfname, VINFO * vinfo) {
 			//16TB at 4KB cluster size maxes out TotalNumberOfClusters
 			
 			ULARGE_INTEGER TotalNumberOfBytes;
-			if (GetDiskFreeSpaceEx(vinfo->Volume, NULL, &TotalNumberOfBytes, NULL)) {
+			if (GetDiskFreeSpaceExW(vinfo->Volume, NULL, &TotalNumberOfBytes, NULL)) {
 				vinfo->Clusters = (TotalNumberOfBytes.QuadPart / vinfo->ClusterSize);
 
 				
@@ -540,14 +541,14 @@ int dumpfile(Blockstatflags* bsf,wchar_t* src) {
 
 	//if the file exists, we can do something
 	//should already be checked by main
-	if (PathFileExists(src)) {
+	if (PathFileExistsW(src)) {
 
 
 		//get the volume info by referencing the file
 		if (GetVolInfo(src, vinfo)) {
 			
 			//if we can get the vol info, we try to open the file in read/shared modus
-			HANDLE srchandle = CreateFile(src, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+			HANDLE srchandle = CreateFileW(src, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 			if (srchandle != INVALID_HANDLE_VALUE) {
 
 				//if we can open the file, we can query the the cluster information
@@ -708,7 +709,7 @@ int comparefiles(Blockstatflags* bsf,wchar_t* filesa[],int filesc) {
 		wchar_t * src = filesa[f];
 
 		//if path exists (should already be done by main but just to make sure)
-		if (PathFileExists(src)) {
+		if (PathFileExistsW(src)) {
 
 			VINFO* vinfo = (VINFO*)malloc(sizeof(VINFO));
 			(vinfo->Volume)[0] = 0;
@@ -774,7 +775,7 @@ int comparefiles(Blockstatflags* bsf,wchar_t* filesa[],int filesc) {
 		//for every file, open it and check the used clusters
 		for (int f = 0; f < goodfiles; f++) {
 			//open file in read (shared) mode
-			HANDLE srchandle = CreateFile(files[f], GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+			HANDLE srchandle = CreateFileW(files[f], GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
 
 			//if we can open the file, all is good
@@ -909,19 +910,19 @@ int comparefiles(Blockstatflags* bsf,wchar_t* filesa[],int filesc) {
 	return retvalue;
 }
 bool isdir(bool * isdir, wchar_t * dir) {
-	WIN32_FIND_DATA ffd;
+	WIN32_FIND_DATAW ffd;
 	HANDLE hFind = INVALID_HANDLE_VALUE;
 	bool ok = true;
 	(*isdir) = false;
 
 	int len = wcslen(dir);
 
-	hFind = FindFirstFile(dir, &ffd);
+	hFind = FindFirstFileW(dir, &ffd);
 	if (INVALID_HANDLE_VALUE != hFind) {
 		(*isdir) = (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY );
 		FindClose(hFind);
 	}
-	else if (len > 1 && len < 4 && dir[1] == L':' && PathFileExists(dir)) {
+	else if (len > 1 && len < 4 && dir[1] == L':' && PathFileExistsW(dir)) {
 			(*isdir) = true;
 	} 
 	else {
@@ -931,7 +932,7 @@ bool isdir(bool * isdir, wchar_t * dir) {
 }
 
 void recursiveadddir(wchar_t* basedir, int* count, wchar_t** files) {
-	WIN32_FIND_DATA ffd;
+	WIN32_FIND_DATAW ffd;
 	HANDLE hFind = INVALID_HANDLE_VALUE;
 	wchar_t * qdir = (wchar_t*)(malloc(sizeof(wchar_t)*SUPERMAXPATH));
 
@@ -939,7 +940,7 @@ void recursiveadddir(wchar_t* basedir, int* count, wchar_t** files) {
 		wcscat_s(basedir, SUPERMAXPATH, L"\\");
 		wcscpy_s(qdir, SUPERMAXPATH, basedir);
 		wcscat_s(qdir, SUPERMAXPATH,L"*");
-		hFind = FindFirstFile(qdir, &ffd);
+		hFind = FindFirstFileW(qdir, &ffd);
 
 		
 		if (INVALID_HANDLE_VALUE != hFind)
@@ -958,13 +959,13 @@ void recursiveadddir(wchar_t* basedir, int* count, wchar_t** files) {
 					}
 				}
 				else {
-					if (PathFileExists(nextpath)) {
+					if (PathFileExistsW(nextpath)) {
 						files[(*count)] = nextpath;
 						(*count) = (*count) + 1;
 					}
 					//wprintf(L"%5ld %ls\n",(*count),nextpath);
 				}
-			} while ((*count) < MAXCOMPAREFILES && FindNextFile(hFind, &ffd) != 0);
+			} while ((*count) < MAXCOMPAREFILES && FindNextFileW(hFind, &ffd) != 0);
 			FindClose(hFind);
 		}
 		//else { wprintf(L"invalid handle %ls\n",qdir); }
@@ -973,6 +974,23 @@ void recursiveadddir(wchar_t* basedir, int* count, wchar_t** files) {
 
 	free(qdir);
 	
+}
+//cleanup the output file, 
+int cleanup(int retvalue, Blockstatflags * bsf, char* readfromfile, wchar_t** files, int filesc){
+if (bsf->printerisfile) {
+	fflush(bsf->printer);
+	fclose(bsf->printer);
+	free(bsf->printer);
+}
+
+//clean up buffers 
+//this program might have memory leaks but who cares for a program that is running 10 seconds ;)
+for (int i = 0; i < filesc; i++) {
+	free(files[i]);
+}
+free(files);
+free(readfromfile);
+return retvalue;
 }
 
 int main(int argc, char* argv[])
@@ -1015,8 +1033,8 @@ int main(int argc, char* argv[])
 					//copy compare
 					mbstowcs_s(&conv, filealloc, SUPERMAXPATH, argv[i+1], strlen(argv[i+1]));
 
-					//if the file exists, add it to the file stack for comparissoon
-					if (PathFileExists(filealloc)) {
+					//if the file exists, add it to the file stack for comparisson
+					if (PathFileExistsW(filealloc)) {
 						VINFO* vinfo = (VINFO*)malloc(sizeof(VINFO));
 						(vinfo->Volume)[0] = 0;
 						if (GetVolInfo(filealloc, vinfo)) {
@@ -1069,7 +1087,7 @@ int main(int argc, char* argv[])
 				if ((i + 1) < argc) {
 					i++;
 
-					WIN32_FIND_DATA ffd;
+					WIN32_FIND_DATAW ffd;
 					HANDLE hFind = INVALID_HANDLE_VALUE;
 
 					wchar_t * filealloc = (wchar_t*)malloc(sizeof(wchar_t)*SUPERMAXPATH); filealloc[0] = L'\0';
@@ -1077,7 +1095,7 @@ int main(int argc, char* argv[])
 					//copy compare
 					mbstowcs_s(&conv, filealloc, SUPERMAXPATH, argv[i], strlen(argv[i]));
 
-					hFind = FindFirstFile(filealloc, &ffd);
+					hFind = FindFirstFileW(filealloc, &ffd);
 					if (INVALID_HANDLE_VALUE != hFind)
 					{
 						size_t ll = wcslen(filealloc) - 1;
@@ -1095,14 +1113,14 @@ int main(int argc, char* argv[])
 								wcscat_s(fpath, SUPERMAXPATH, ffd.cFileName);
 
 								//wprintf(L"%ls\n",fpath);
-								if (PathFileExists(fpath)) {
+								if (PathFileExistsW(fpath)) {
 
 									files[filesc] = fpath;
 									filesc++;
 								}
 							}
 
-						} while (FindNextFile(hFind, &ffd) != 0);
+						} while (FindNextFileW(hFind, &ffd) != 0);
 
 						FindClose(hFind);
 					}
@@ -1140,7 +1158,7 @@ int main(int argc, char* argv[])
 				if ((i + 1) < argc) {
 					i++;
 
-					WIN32_FIND_DATA ffd;
+					WIN32_FIND_DATAW ffd;
 					HANDLE hFind = INVALID_HANDLE_VALUE;
 
 					wchar_t * filealloc = (wchar_t*)malloc(sizeof(wchar_t)*SUPERMAXPATH); filealloc[0] = L'\0';
@@ -1153,7 +1171,7 @@ int main(int argc, char* argv[])
 					else {
 						wcscat_s(filealloc, SUPERMAXPATH, L"\\*");
 					}
-					hFind = FindFirstFile(filealloc, &ffd);
+					hFind = FindFirstFileW(filealloc, &ffd);
 					if (INVALID_HANDLE_VALUE != hFind)
 					{
 						filealloc[wcslen(filealloc) - 1] = L'\0';
@@ -1165,13 +1183,13 @@ int main(int argc, char* argv[])
 								wcscat_s(fpath, SUPERMAXPATH, filealloc);
 								wcscat_s(fpath, SUPERMAXPATH, ffd.cFileName);
 
-								if (PathFileExists(fpath)) {
+								if (PathFileExistsW(fpath)) {
 									files[filesc] = fpath;
 									filesc++;
 								}
 							}
 							
-						} while (FindNextFile(hFind, &ffd) != 0);
+						} while (FindNextFileW(hFind, &ffd) != 0);
 
 						FindClose(hFind);
 					}
@@ -1192,7 +1210,7 @@ int main(int argc, char* argv[])
 				printf("-d use directory supplied as input\n");
 				printf("-t use directory supplied as input recursive\n");
 				printf("-m mask e.g c:\\d\\file*.vbk\n");
-				goto CLEANUP;
+				cleanup(retvalue, bsf,readfromfile, files, filesc);
 				break;
 			case 'v':
 				bsf->verbose = true;
@@ -1207,7 +1225,7 @@ int main(int argc, char* argv[])
 				printf("-d use directory supplied as input\n");
 				printf("-t use directory supplied as input recursive\n");
 				printf("-m mask e.g c:\\d\\file*.vbk\n");
-				goto CLEANUP;
+				cleanup(retvalue, bsf,readfromfile, files, filesc);
 				break;
 			}
 		}
@@ -1221,7 +1239,7 @@ int main(int argc, char* argv[])
 			mbstowcs_s(&conv, filealloc, SUPERMAXPATH, argv[i], strlen(argv[i]));
 
 			//if the file exists, add it to the file stack for comparissoon
-			if (PathFileExists(filealloc)) {
+			if (PathFileExistsW(filealloc)) {
 				files[filesc] = filealloc;
 				filesc++;
 			}
@@ -1252,7 +1270,7 @@ int main(int argc, char* argv[])
 					}
 				}
 				//if the file exists copy it to another location (reusing buf in the while loop)
-				if (PathFileExists(buf)) {
+				if (PathFileExistsW(buf)) {
 					int cplen = wcslen(buf)+1;
 					wchar_t * pcp = (wchar_t*)malloc(sizeof(wchar_t)*cplen);
 					//safe copy
@@ -1264,7 +1282,7 @@ int main(int argc, char* argv[])
 
 				}
 				else {
-					wprintf(L"%ls does not exit\n", buf);
+					wprintf(L"%ls does not exist\n", buf);
 				}
 				buf[0] = 0;
 			}
@@ -1301,7 +1319,7 @@ int main(int argc, char* argv[])
 
 
 			//if file exists, add to the file stack
-			if (PathFileExists(filealloc)) {
+			if (PathFileExistsW(filealloc)) {
 				files[filesc] = filealloc;
 				filesc++;
 			}
@@ -1328,21 +1346,6 @@ int main(int argc, char* argv[])
 		printf("Need at least 2 files to compare and 1 to dump");
 	}
 	
-	//cleanup the output file, 
-	CLEANUP:
-	if (bsf->printerisfile) {
-		fflush(bsf->printer);
-		fclose(bsf->printer);
-		free(bsf->printer);
-	}
-
-	//clean up buffers 
-	//this program might have memory leaks but who cares for a program that is running 10 seconds ;)
-	for (int i = 0; i < filesc; i++) {
-		free(files[i]);
-	}
-	free(files);
-	free(readfromfile);
-    return retvalue;
+    cleanup(retvalue, bsf,readfromfile, files, filesc);
 }
 
